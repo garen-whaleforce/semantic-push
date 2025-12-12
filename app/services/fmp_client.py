@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Optional, Union
 
@@ -36,7 +36,8 @@ class FMPClient:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.base_url = self.settings.fmp_base_url
+        # Use stable API base URL
+        self.base_url = "https://financialmodelingprep.com/stable"
         self.api_key = self.settings.fmp_api_key
         self._client: Optional[httpx.AsyncClient] = None
 
@@ -61,7 +62,7 @@ class FMPClient:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         reraise=True,
     )
-    async def _request(self, endpoint: str, params: Optional[dict] = None) -> dict | list:
+    async def _request(self, endpoint: str, params: Optional[dict] = None) -> Union[dict, list]:
         """Make a request to FMP API with retry logic."""
         client = await self._get_client()
         params = params or {}
@@ -81,7 +82,8 @@ class FMPClient:
 
     async def get_sp500_constituents(self) -> list[str]:
         """Get list of S&P500 constituent symbols."""
-        data = await self._request("sp500_constituent")
+        # Use stable endpoint: /stable/sp500-constituent
+        data = await self._request("sp500-constituent")
         if not isinstance(data, list):
             logger.warning("Unexpected SP500 response format")
             return []
@@ -94,8 +96,9 @@ class FMPClient:
         Returns list of symbols that have earnings announcement on as_of date.
         """
         date_str = as_of.strftime("%Y-%m-%d")
+        # Use stable endpoint: /stable/earnings-calendar
         data = await self._request(
-            "earning_calendar",
+            "earnings-calendar",
             params={"from": date_str, "to": date_str},
         )
 
@@ -121,20 +124,18 @@ class FMPClient:
         Returns list of price data sorted by date (newest first).
         Each item has: date, open, high, low, close, volume, etc.
         """
+        # Use stable endpoint: /stable/historical-price-eod/full
         data = await self._request(
-            f"historical-price-full/{symbol}",
-            params={"timeseries": timeseries},
+            f"historical-price-eod/full",
+            params={"symbol": symbol},
         )
 
-        if not isinstance(data, dict):
+        if not isinstance(data, list):
             logger.warning(f"Unexpected historical price response format for {symbol}")
             return []
 
-        historical = data.get("historical", [])
-        if not isinstance(historical, list):
-            return []
-
-        return historical
+        # Return only the requested number of records (newest first)
+        return data[:timeseries]
 
     async def get_price_data_for_date(
         self, symbol: str, as_of: date
