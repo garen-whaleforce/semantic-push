@@ -9,15 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY pyproject.toml .
-COPY app/ app/
-COPY alembic/ alembic/
-COPY alembic.ini .
+# Copy requirements first for better caching
+COPY requirements.txt .
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim
